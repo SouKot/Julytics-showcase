@@ -3,15 +3,29 @@
 <h1>Julytics</h1>
 <p><strong>Interactive data visualization and analysis platform built with Julia</strong></p>
 
-<video src="docs/assets/julytics.mp4" controls width="100%"></video>
-
-<br/>
-
 ![Julia](https://img.shields.io/badge/Julia-1.9+-9558B2?style=for-the-badge&logo=julia&logoColor=white)
 ![WGLMakie](https://img.shields.io/badge/WGLMakie-GPU%20Accelerated-4CAF50?style=for-the-badge)
 ![Genie](https://img.shields.io/badge/Genie-Reactive%20UI-1565C0?style=for-the-badge)
-![Status](https://img.shields.io/badge/Status-Active-brightgreen?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Alpha-orange?style=for-the-badge)
+![AI Assisted](https://img.shields.io/badge/AI%20Assisted-Audited%20%26%20Tested-blueviolet?style=for-the-badge)
 
+</div>
+
+> **⚠️ Alpha — Active Development**
+> Julytics is currently in alpha. Core features are functional but the API, UI, and data formats are subject to change. Feedback and bug reports are welcome.
+
+---
+
+## 🎬 Demo
+
+> Click the image below to watch the demo video.
+
+<div align="center">
+  <a href="https://raw.githubusercontent.com/SouKot/Julytics-showcase/main/docs/assets/julytics.mp4">
+    <img src="docs/assets/home_tab.png" alt="Click to watch Julytics demo" width="85%"/>
+  </a>
+  <br/>
+  <sub>▶ Click to watch demo</sub>
 </div>
 
 ---
@@ -29,17 +43,11 @@ Built for analysts who want the power of a full programming language with the im
 <table>
   <tr>
     <td align="center">
-      <img src="docs/assets/home_tab.png" alt="Home Tab" width="100%"/>
-      <sub><b>Home — Load datasets and manage your workspace</b></sub>
-    </td>
-    <td align="center">
       <img src="docs/assets/data_explorer.png" alt="Data Explorer" width="100%"/>
       <sub><b>Data Explorer — Drag-and-drop column mapping with live preview</b></sub>
     </td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2">
-      <img src="docs/assets/bench_mode.png" alt="Bench Mode" width="60%"/>
+    <td align="center">
+      <img src="docs/assets/bench_mode.png" alt="Bench Mode" width="100%"/>
       <sub><b>Bench Mode — Multi-panel analysis layout</b></sub>
     </td>
   </tr>
@@ -60,11 +68,10 @@ Built for analysts who want the power of a full programming language with the im
 - Supports CSV and structured data files
 
 ### 📝 Annotation System
-- Click-to-snap: circle snaps to the nearest data point
+- Click-to-snap: snaps to the nearest data point
 - Dashed leader line with automatic pixel-precise gap from text edge
 - Optional text box background (toggle on/off per annotation)
 - Annotations persist across sessions via JSON config
-- Selection state (red = selected, black = unselected)
 - **Vectorized Array Buffer architecture**: all annotations share 4 static GPU nodes — zero scene-graph mutations, zero UI stutter on create/delete
 
 ### 📐 Flexible Layout
@@ -82,7 +89,6 @@ Built for analysts who want the power of a full programming language with the im
 | Plotting | [WGLMakie](https://docs.makie.org/stable/) — WebGL via Observables |
 | Reactive UI | [Genie.jl](https://genieframework.com/) + [Stipple.jl](https://github.com/GenieFramework/Stipple.jl) |
 | Frontend | Vue 3 (managed by Stipple) |
-| Geometry | [GeometryBasics.jl](https://github.com/JuliaGeometry/GeometryBasics.jl) |
 | Persistence | JSON config snapshots with content-hash deduplication |
 
 ---
@@ -93,16 +99,29 @@ Built for analysts who want the power of a full programming language with the im
 Rather than creating and deleting Makie plot objects per annotation (which causes WebSocket serialization overhead and GPU stuttering), Julytics uses four **persistent static nodes** bound to shared `Observable{Vector}` arrays:
 
 ```
-VA_ANC  — scatter!       anchor dots      (data space)
-VA_LINE — linesegments!  leader lines     (data space, pixel-gap computed)
-VA_BOX  — poly!          text backgrounds (pixel space)
-VA_TXT  — text!          labels           (data space)
+VA_ANC  — scatter!       anchor dots   (data space)
+VA_LINE — linesegments!  leader lines  (data space, pixel-gap computed)
+VA_BOX  — poly!          text boxes    (pixel space)
+VA_TXT  — text!          labels        (data space)
 ```
 
 All annotation CRUD operations update the arrays in-place. Zero scene-graph mutations after initialization.
 
 ### Smart Layer Diffing
-The plotting backend compares incoming layer configs against existing scene objects by label ID before rendering. Only changed layers are redrawn — unchanged layers are left untouched on the GPU.
+The plotting backend compares incoming layer configs against existing scene objects by label ID before re-rendering. Only changed layers are redrawn — unchanged layers are left untouched on the GPU.
+
+---
+
+## A Note on AI-Assisted Development
+
+This project was built with the assistance of AI coding tools. However, to ensure **reliability, correctness, and performance**, every AI-generated contribution was subject to:
+
+- ✅ Manual code review and architectural audit
+- ✅ Rigorous testing of edge cases and interaction states
+- ✅ Performance profiling and regression checks
+- ✅ Domain-specific validation of numerical and rendering correctness
+
+AI was used as a productivity accelerator — all design decisions, trade-off evaluations, and quality gates were driven by human judgement.
 
 ---
 
@@ -113,5 +132,5 @@ The full source is maintained in a **private repository**. If you are interested
 ---
 
 <div align="center">
-  <sub>Built with ❤️ using Julia</sub>
+  <sub>Built with ❤️ using Julia — Alpha release, actively developed</sub>
 </div>
