@@ -21,7 +21,7 @@
 > Click the image below to watch the demo video.
 
 <div align="center">
-  <a href="https://raw.githubusercontent.com/SouKot/Julytics-showcase/main/docs/assets/julytics.mp4">
+  <video src="https://github.com/user-attachments/assets/e9a7471f-448b-4516-bca0-6d5a32c07ae0" controls width="85%"></video>
     <img src="docs/assets/home_tab.png" alt="Click to watch Julytics demo" width="85%"/>
   </a>
   <br/>
