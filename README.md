@@ -218,7 +218,8 @@ delete are all array updates.
 | **Components** | `InteractivePlot`, `DataViewer`, `DataExplorer`, `Workspace`, `Inspector` — UI rendering |
 | **Types** | `Types.jl` — all shared structs (`LayoutConfig`, `AnnotationVBuffer`, `LayerData`, …) |
 
-### 9. Live Script Console
+### 9. Live Script Console *(Early Stage)*
+
 A sandboxed Julia REPL is embedded in the workbench. User code runs inside an isolated
 `ScriptContext` module with the reactive model injected as `model`. Results are written
 out via `log("msg")` to avoid stdout capture issues:
@@ -229,10 +230,34 @@ log(describe(GLOBAL_DATA[]))  # inspect loaded dataset
 model.status_msg[] = "Script done"  # update UI directly
 ```
 
+> **⚠️ Early Stage.** The script console is functional at a basic level but requires significant additional work before it is genuinely useful:
+> - No persistent variable scope between runs
+> - No output streaming (output appears only after full execution)
+> - No syntax highlighting or autocomplete
+> - Error messages are minimal
+>
+> Improving the scripting experience is on the roadmap.
+
 ### 10. Session Persistence Strategy
 Layout, layer mappings, and annotations are fully serialised through Stipple's JSON
 mechanism. To avoid slow disk I/O on every request, `GenieSession.persist` is monkey-patched
 at startup to a no-op, keeping all session state in-memory for the process lifetime.
+
+---
+
+### Architectural Roadmap
+
+The current architecture is intentionally a **work in progress**. The primary long-term
+goal is a progressively more **performant and stable** codebase. Planned directions include:
+
+- Replacing remaining `println`-based operational logging with structured `@info`/`@warn`
+- Moving from per-annotation camera listeners to a single shared rebuild trigger
+- True font-metric-based leader line gap instead of character-width approximation
+- Debounced `_rebuild_vbuf!()` to reduce redundant GPU syncs on rapid state changes
+- Exploring compile-time type stability improvements in hot render paths
+- Cleaner separation between persistence layer and UI reactive layer
+
+As the app matures through its alpha phase, architectural patterns that prove expensive or brittle will be refactored — correctness and rendering performance are the primary drivers of every such decision.
 
 ---
 
