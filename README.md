@@ -322,7 +322,7 @@ AI was used as a productivity accelerator — all design decisions, trade-off ev
 
 ## Source Code
 
-The full source is maintained in a **private repository**. If you are interested in collaboration, licensing, or a deeper technical walkthrough, feel free to reach out.
+The full source is maintained in a **private repository**.
 
 ---
 
