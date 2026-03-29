@@ -21,7 +21,7 @@
 > Click the image below to watch the demo video.
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/e9a7471f-448b-4516-bca0-6d5a32c07ae0" controls width="85%"></video>
+  <a href="https://raw.githubusercontent.com/SouKot/Julytics-showcase/main/docs/assets/julytics.mp4">
     <img src="docs/assets/home_tab.png" alt="Click to watch Julytics demo" width="85%"/>
   </a>
   <br/>
@@ -74,6 +74,22 @@ Built for analysts who want the power of a full programming language with the im
 - Annotations persist across sessions via JSON config
 - **Vectorized Array Buffer architecture**: all annotations share 4 static GPU nodes — zero scene-graph mutations, zero UI stutter on create/delete
 
+### 📊 Statistical Analysis
+Julytics ships a built-in statistical analysis panel backed by Julia's native statistics ecosystem:
+
+| Test | Type | Use case |
+|------|------|----------|
+| **One-Way ANOVA** | Parametric | Compare means across ≥ 3 groups |
+| **t-Test** | Parametric | Compare means of 2 groups |
+| **Mann-Whitney U** | Non-parametric | 2-group alternative to t-Test |
+| **Kruskal-Wallis** | Non-parametric | Multi-group alternative to ANOVA |
+| **Pearson Correlation** | Correlation | Measure linear relationship strength |
+| **Linear Regression** | Regression | Fit Y ~ X, report coefficients & R² |
+
+Results are displayed in a live **descriptive statistics table** (statistic, p-value, significance) that updates as soon as analysis is run. Dependent and independent variables are selected directly from the loaded dataset columns — no coding required.
+
+> Additional tests (e.g. Welch's t-Test, Shapiro-Wilk normality, χ² independence, ANCOVA) are planned for upcoming releases.
+
 ### 📐 Flexible Layout
 - Multi-subplot grid with configurable rows/columns
 - Bench mode for deep-dive analysis
@@ -88,6 +104,7 @@ Built for analysts who want the power of a full programming language with the im
 | Language | [Julia](https://julialang.org/) |
 | Plotting | [WGLMakie](https://docs.makie.org/stable/) — WebGL via Observables |
 | Reactive UI | [Genie.jl](https://genieframework.com/) + [Stipple.jl](https://github.com/GenieFramework/Stipple.jl) |
+| Statistics | [HypothesisTests.jl](https://github.com/JuliaStats/HypothesisTests.jl), [GLM.jl](https://github.com/JuliaStats/GLM.jl), [StatsBase.jl](https://github.com/JuliaStats/StatsBase.jl) |
 | Frontend | Vue 3 (managed by Stipple) |
 | Persistence | JSON config snapshots with content-hash deduplication |
 
@@ -95,20 +112,127 @@ Built for analysts who want the power of a full programming language with the im
 
 ## Architecture Highlights
 
-### Vectorized Annotation Buffer
-Rather than creating and deleting Makie plot objects per annotation (which causes WebSocket serialization overhead and GPU stuttering), Julytics uses four **persistent static nodes** bound to shared `Observable{Vector}` arrays:
+### 1. Reactive Model — Single Source of Truth
+The entire application state lives in one `Model` struct declared with Stipple's `@app` DSL.
+Each field is annotated `@in` (client → server write) or `@out` (server → client read-only),
+and Stipple automatically serialises changes over WebSocket to the Vue 3 frontend.
+There are no manual fetch calls, no polling, and no state duplication between layers.
+
+```julia
+@app Model begin
+    @in  layout_config::LayoutConfig = LayoutConfig(...)  # grid + all cell/layer/annotation state
+    @in  analysis_test_anova::Bool   = true               # UI checkbox bound to backend
+    @out hypothesis_results::DataTable = DataTable()      # pushed to table on run
+    # ... 60+ reactive fields
+end
+```
+
+### 2. Dual-Server Architecture
+Julytics runs two servers side-by-side, bridged via dynamic port negotiation:
+
+| Server | Role |
+|--------|------|
+| **Genie HTTP** (port 8001) | Serves the main HTML page, routes, WebSocket for Stipple reactivity |
+| **Bonito WS** (port 9303+) | Dedicated WebSocket for WGLMakie → WebGL GPU buffer updates |
+
+At startup, `get_free_port(9303)` probes for the first available port so multiple instances
+never collide. The Makie port is injected into the page template so the browser connects
+to the correct WebGL endpoint.
+
+### 3. LayoutConfig — Composable Grid State
+All layout, cell, layer, and annotation data is expressed in a single serializable struct tree:
 
 ```
-VA_ANC  — scatter!       anchor dots   (data space)
-VA_LINE — linesegments!  leader lines  (data space, pixel-gap computed)
-VA_BOX  — poly!          text boxes    (pixel space)
-VA_TXT  — text!          labels        (data space)
+LayoutConfig
+└── cells::Vector{CellConfig}       # N×M grid cells with (row, col, rowspan, colspan)
+    ├── visuals / margins / labels
+    ├── layers::Vector{LayerConfig}  # Multi-layer plots per cell
+    │   └── x_var, y_var, color_var, type, color, width, opacity
+    └── annotations::Vector{AnnotationConfig}  # persisted per cell
 ```
 
-All annotation CRUD operations update the arrays in-place. Zero scene-graph mutations after initialization.
+All mutations follow an **immutable-update** pattern — controllers `deepcopy` the current
+config, apply changes, then write the new struct back — guaranteeing Stipple's reactive
+graph fires exactly once:
 
-### Smart Layer Diffing
-The plotting backend compares incoming layer configs against existing scene objects by label ID before re-rendering. Only changed layers are redrawn — unchanged layers are left untouched on the GPU.
+```julia
+conf = deepcopy(model.layout_config[])
+conf.cells[idx].layers[lid].opacity = val
+model.layout_config[] = conf          # single reactive notification
+```
+
+An `is_loading_cell` boolean guard prevents cascading re-saves during programmatic load.
+
+### 4. N×M Grid Engine with Span Support
+Cells behave like **CSS grid items** — each has (row, col, rowspan, colspan). The grid
+engine supports:
+- **Directional expansion/contraction** (8 triggers: expand/contract × up/down/left/right)
+- **`compact_layout!()`** — reindexes a sparse grid by remapping only occupied row/column
+  indices, preserving span correctness
+- **Presentation / Workbench modes** — the splitter position is stored in the model and
+  toggled via `current_tab` observer
+
+### 5. Non-Reactive Global Data Store
+DataFrame storage is deliberately kept outside the reactive model:
+
+```julia
+const GLOBAL_DATA = Ref{Union{DataFrame, Nothing}}(nothing)
+```
+
+This avoids serialising potentially large datasets over WebSocket on every state change.
+Plot generation reads `GLOBAL_DATA[]` directly, while only lightweight metadata
+(column names, row counts) is synced to the frontend.
+
+### 6. Smart Layer Diffing
+When `layout_config` changes, the plotting backend does a **label-ID-based scan** of the
+existing Makie scene before re-rendering:
+
+- Plots labelled `L{id}_{type}` are matched against incoming layers
+- Unchanged layers are left untouched on the GPU
+- Type-changed layers (e.g. lines → scatter) are replaced by label since the ID changes
+- Stale layers are hidden via `p.visible[] = false` — never `delete!()`
+
+This eliminates the full-scene teardown that caused WebSocket stutter in earlier versions.
+
+### 7. Vectorized Annotation Buffer (VA Architecture)
+Annotations use **4 static Makie nodes** per axis, backed by shared `Observable{Vector}` arrays:
+
+```
+VA_ANC  (scatter!)        — anchor dots at clicked data points
+VA_LINE (linesegments!)   — dashed leader lines with pixel-precise text-edge gap
+VA_BOX  (poly!, px-space) — optional white background box per label
+VA_TXT  (text!)           — annotation labels in data space
+```
+
+`_rebuild_vbuf!()` is the single O(N) sync function that pushes all annotation state to GPU
+arrays in one pass. Zero scene-graph mutations occur after initialisation — create, edit, and
+delete are all array updates.
+
+### 8. MVC Component Separation
+
+| Layer | Modules |
+|-------|--------|
+| **Model** | `AppModel.jl` — all reactive `@in`/`@out` state |
+| **Controllers** | `LayoutController`, `PersistenceController`, `PlotController`, `StatisticsController`, `HypothesisController` |
+| **Handlers** | `LayoutHandler`, `StatisticsHandler`, `HypothesisHandler` — event dispatch & trigger management |
+| **Components** | `InteractivePlot`, `DataViewer`, `DataExplorer`, `Workspace`, `Inspector` — UI rendering |
+| **Types** | `Types.jl` — all shared structs (`LayoutConfig`, `AnnotationVBuffer`, `LayerData`, …) |
+
+### 9. Live Script Console
+A sandboxed Julia REPL is embedded in the workbench. User code runs inside an isolated
+`ScriptContext` module with the reactive model injected as `model`. Results are written
+out via `log("msg")` to avoid stdout capture issues:
+
+```julia
+# Inside the script console:
+log(describe(GLOBAL_DATA[]))  # inspect loaded dataset
+model.status_msg[] = "Script done"  # update UI directly
+```
+
+### 10. Session Persistence Strategy
+Layout, layer mappings, and annotations are fully serialised through Stipple's JSON
+mechanism. To avoid slow disk I/O on every request, `GenieSession.persist` is monkey-patched
+at startup to a no-op, keeping all session state in-memory for the process lifetime.
 
 ---
 
