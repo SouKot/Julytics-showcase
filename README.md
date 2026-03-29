@@ -3,7 +3,7 @@
 <h1>Julytics</h1>
 <p><strong>Interactive data visualization and analysis platform built with Julia</strong></p>
 
-![Julia](https://img.shields.io/badge/Julia-1.9+-9558B2?style=for-the-badge&logo=julia&logoColor=white)
+![Julia](https://img.shields.io/badge/Julia-1.12.3-9558B2?style=for-the-badge&logo=julia&logoColor=white)
 ![WGLMakie](https://img.shields.io/badge/WGLMakie-GPU%20Accelerated-4CAF50?style=for-the-badge)
 ![Genie](https://img.shields.io/badge/Genie-Reactive%20UI-1565C0?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-Alpha-orange?style=for-the-badge)
