@@ -245,19 +245,65 @@ at startup to a no-op, keeping all session state in-memory for the process lifet
 
 ---
 
-### Architectural Roadmap
+## Architectural Roadmap
 
-The current architecture is intentionally a **work in progress**. The primary long-term
-goal is a progressively more **performant and stable** codebase. Planned directions include:
+The current architecture is intentionally a **work in progress**. The codebase is subject to significant change as the project matures. The primary long-term goal is a progressively more **performant, stable, and extensible** application — the items below reflect a formal internal audit organised by priority.
 
-- Replacing remaining `println`-based operational logging with structured `@info`/`@warn`
-- Moving from per-annotation camera listeners to a single shared rebuild trigger
-- True font-metric-based leader line gap instead of character-width approximation
-- Debounced `_rebuild_vbuf!()` to reduce redundant GPU syncs on rapid state changes
-- Exploring compile-time type stability improvements in hot render paths
-- Cleaner separation between persistence layer and UI reactive layer
+---
 
-As the app matures through its alpha phase, architectural patterns that prove expensive or brittle will be refactored — correctness and rendering performance are the primary drivers of every such decision.
+### ⚡ Performance
+
+| # | Issue | Plan |
+|---|-------|------|
+| 1.1 | **Type instability in data processing** — dynamic column extraction triggers Julia's dynamic dispatch, slowing aggregations on large datasets | Introduce function barriers (`compute_core(vec::Vector{Float64})`) so the compiler can specialize and run inner loops at native speed |
+| 1.2 | **Single-threaded processing** — CSV parsing and statistical aggregations block the UI thread | Enable `JULIA_NUM_THREADS=auto` and apply `Threads.@threads` / `CSV.File(..., ntasks=N)` to parallelise independent operations |
+| 1.3 | **WebSocket serialization bottleneck** — rendering 100k+ points simultaneously can freeze the WebGL socket | Implement server-side GPU Datashading / Hexbinning, returning a single PNG overlay instead of raw point geometry |
+| 1.4 | **Vue DOM repaint overhead** — deeply nested reactive dictionaries in `AppModel` can trigger full-subtree repaints | Ensure all mutations are in-place Observable updates; batch WebSocket notifications using `Stipple.@js_watch` |
+
+---
+
+### 🛡️ Stability
+
+| # | Issue | Plan |
+|---|-------|------|
+| 2.1 | ~~**Memory leaks & stutter from Makie scene graph mutations**~~ | ✅ **Resolved** — replaced `delete!(ax, plot)` with the Vectorized Array Buffer (VA) architecture; 4 static GPU nodes, zero scene-graph mutations after init |
+| 2.2 | **Dangling Observable listeners** — `on(obs)` callbacks created for mouse interactions are never explicitly destroyed, accumulating invisible CPU load | Standardize a lifecycle pattern where all temporary tool listeners are returned and explicitly torn down on tool exit |
+
+---
+
+### 🖱️ User Ergonomics
+
+| # | Issue | Plan |
+|---|-------|------|
+| 3.1 | **No column type casting** — numeric codes (1, 2, 3) for categorical groups are silently treated as continuous, causing incorrect statistical routing | Add a "Column Type" dropdown (Categorical / Continuous / String) next to each variable in the Data Drawer |
+| 3.2 | **Blind off-canvas interactions** — users must look away from the plot to configure trace properties | Implement right-click context menus on the canvas, surfacing only the contextually relevant parameters for the clicked element |
+
+---
+
+### 🧪 Testing & Benchmarks
+
+| # | Issue | Plan |
+|---|-------|------|
+| 4.1 | **No GPU render validation** — current CI tests verify DOM load but cannot detect a broken Makie render that produces a white screen | Spin up a headless GL server in GitHub Actions and perform pixel-level comparisons against golden baseline images using `ReferenceTests.jl` |
+| 4.2 | **Benchmark blind spots** — benchmarks only measure ANOVA CPU speed | Expand to track memory allocations (`@benchmarkable ... allocs=true`) and stress-test with large Mixed Linear Models |
+
+---
+
+### 📊 Statistical Features
+
+These additions would close the gap against established tools like GraphPad Prism and Jamovi:
+
+| # | Feature | Priority |
+|---|---------|----------|
+| 5.1 | **Automated assumption checking** — run Shapiro-Wilk (normality) + Levene's (variance homogeneity) automatically before displaying ANOVA results | Critical |
+| 5.2 | **Post-hoc multiple comparisons** — Tukey's HSD and Bonferroni corrections to identify which specific groups differ after a significant ANOVA | Critical |
+| 5.3 | **Non-linear curve fitting** — IC50 / dose-response (4PL, 5PL) and exponential decay fitting via `LsqFit.jl` | High |
+| 5.4 | **Repeated measures & mixed models** — track random effects for longitudinal biological data using `MixedModels.jl` | High |
+| 5.5 | **Survival analysis** — Kaplan-Meier curves and Log-Rank tests via `Survival.jl` for clinical/oncology workflows | Medium |
+
+---
+
+> Architecture and feature priorities are re-evaluated continuously as the project evolves. All design decisions are driven by correctness, rendering performance, and the usability needs of scientific end-users.
 
 ---
 
